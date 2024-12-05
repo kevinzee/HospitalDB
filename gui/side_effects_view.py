@@ -1,6 +1,7 @@
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from ttkbootstrap.dialogs import Messagebox
+import tkinter as tk
 from database.basic_queries import (
     get_all_side_effects,
     add_side_effect_to_db,
@@ -50,11 +51,22 @@ class SideEffectsView:
         tree_frame.pack(fill="both", expand=True)
 
         columns = ("MedicationID", "Side Effect Description", "Severity")
-        self.tree = tb.Treeview(tree_frame, columns=columns, show="headings", bootstyle=INFO)
+        self.tree = tb.Treeview(
+            tree_frame, columns=columns, show="headings", style="Treeview"
+        )
 
-        for col in columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, anchor="center")
+        # Configure columns
+        self.tree.column("#0", width=0, stretch=tk.NO)  # Hide default column
+        self.tree.column("MedicationID", anchor="center", width=150)
+        self.tree.column("Side Effect Description", anchor="w", width=300)
+        self.tree.column("Severity", anchor="center", width=150)
+
+        # Add headers
+        self.tree.heading("MedicationID", text="Medication ID", anchor="center")
+        self.tree.heading(
+            "Side Effect Description", text="Side Effect Description", anchor="w"
+        )
+        self.tree.heading("Severity", text="Severity", anchor="center")
 
         self.tree.pack(side="left", fill="both", expand=True)
 
@@ -90,8 +102,11 @@ class SideEffectsView:
         self.tree.delete(*self.tree.get_children())
         try:
             side_effects = get_all_side_effects(self.db_conn)
-            for effect in side_effects:
-                self.tree.insert("", "end", values=effect)
+            for idx, effect in enumerate(side_effects):
+                tag = "evenrow" if idx % 2 == 0 else "oddrow"
+                self.tree.insert("", "end", values=effect, tags=(tag,))
+            self.tree.tag_configure("evenrow", background="#f9f9f9")
+            self.tree.tag_configure("oddrow", background="#ffffff")
         except Exception as e:
             Messagebox.show_error(f"Failed to load side effects: {e}", title="Error")
 
@@ -106,7 +121,9 @@ class SideEffectsView:
         try:
             side_effects = get_all_side_effects(self.db_conn)
             filtered_effects = [
-                effect for effect in side_effects if query.lower() in str(effect).lower()
+                effect
+                for effect in side_effects
+                if query.lower() in str(effect).lower()
             ]
             for effect in filtered_effects:
                 self.tree.insert("", "end", values=effect)
@@ -128,7 +145,9 @@ class SideEffectsView:
         entries = {}
 
         for idx, field in enumerate(fields):
-            tb.Label(form_frame, text=field).grid(row=idx, column=0, padx=5, pady=5, sticky="e")
+            tb.Label(form_frame, text=field).grid(
+                row=idx, column=0, padx=5, pady=5, sticky="e"
+            )
             entry = tb.Entry(form_frame)
             entry.grid(row=idx, column=1, padx=5, pady=5, sticky="w")
             entries[field] = entry
@@ -147,7 +166,9 @@ class SideEffectsView:
             except Exception as e:
                 Messagebox.show_error(f"Failed to add side effect: {e}", title="Error")
 
-        save_button = tb.Button(form_frame, text="Save", command=save_side_effect, bootstyle=SUCCESS)
+        save_button = tb.Button(
+            form_frame, text="Save", command=save_side_effect, bootstyle=SUCCESS
+        )
         save_button.grid(row=len(fields), column=0, columnspan=2, pady=10)
 
     def edit_side_effect(self):
@@ -170,7 +191,9 @@ class SideEffectsView:
         entries = {}
 
         for idx, field in enumerate(fields):
-            tb.Label(form_frame, text=field).grid(row=idx, column=0, padx=5, pady=5, sticky="e")
+            tb.Label(form_frame, text=field).grid(
+                row=idx, column=0, padx=5, pady=5, sticky="e"
+            )
             entry = tb.Entry(form_frame)
             entry.insert(0, values[idx + 1])  # Skip MedicationID
             entry.grid(row=idx, column=1, padx=5, pady=5, sticky="w")
@@ -185,25 +208,57 @@ class SideEffectsView:
                 return
 
             try:
-                update_side_effect(self.db_conn, values[1], data)  # Use SideEffectDescription as key
+                update_side_effect(
+                    self.db_conn, values[1], data
+                )  # Use SideEffectDescription as key
                 edit_window.destroy()
                 self.load_side_effects()
             except Exception as e:
-                Messagebox.show_error(f"Failed to update side effect: {e}", title="Error")
+                Messagebox.show_error(
+                    f"Failed to update side effect: {e}", title="Error"
+                )
 
-        save_button = tb.Button(form_frame, text="Save", command=update_side_effect_record, bootstyle=SUCCESS)
+        save_button = tb.Button(
+            form_frame,
+            text="Save",
+            command=update_side_effect_record,
+            bootstyle=SUCCESS,
+        )
         save_button.grid(row=len(fields), column=0, columnspan=2, pady=10)
 
     def delete_side_effect(self):
         """Delete selected side effect."""
         selected_item = self.tree.focus()
         if not selected_item:
-            Messagebox.show_warning("Please select a record to delete.", title="Warning")
+            Messagebox.show_warning(
+                "Please select a record to delete.", title="Warning"
+            )
             return
 
         values = self.tree.item(selected_item, "values")
+        if not values:
+            Messagebox.show_error(
+                "Failed to retrieve the selected side effect's details.", title="Error"
+            )
+            return
+
+        medication_id = values[0]
+        side_effect_description = values[1]
+
+        confirm = Messagebox.okcancel(
+            message=f"Are you sure you want to delete the side effect '{side_effect_description}' for Medication ID '{medication_id}'?",
+            title="Confirm Deletion",
+            alert=True,
+        )
+        if not confirm:
+            return
+
         try:
-            delete_side_effect(self.db_conn, values[0], values[1])  # MedicationID, SideEffectDescription
+            delete_side_effect(self.db_conn, medication_id, side_effect_description)
             self.load_side_effects()
+            Messagebox.show_info(
+                f"Side effect '{side_effect_description}' for Medication ID '{medication_id}' deleted successfully.",
+                title="Success",
+            )
         except Exception as e:
             Messagebox.show_error(f"Failed to delete side effect: {e}", title="Error")

@@ -1,6 +1,7 @@
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from ttkbootstrap.dialogs import Messagebox
+import tkinter as tk
 from database.basic_queries import (
     get_all_hcp_departments,
     add_hcp_department_to_db,
@@ -50,11 +51,18 @@ class HCPDepartmentsView:
         tree_frame.pack(fill="both", expand=True)
 
         columns = ("HCPID", "Department Name")
-        self.tree = tb.Treeview(tree_frame, columns=columns, show="headings", bootstyle=INFO)
+        self.tree = tb.Treeview(
+            tree_frame, columns=columns, show="headings", style="Treeview"
+        )
 
-        for col in columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, anchor="center")
+        # Configure columns
+        self.tree.column("#0", width=0, stretch=tk.NO)  # Hide default column
+        self.tree.column("HCPID", anchor="center", width=150)
+        self.tree.column("Department Name", anchor="w", width=300)
+
+        # Add headers
+        self.tree.heading("HCPID", text="HCP ID", anchor="center")
+        self.tree.heading("Department Name", text="Department Name", anchor="w")
 
         self.tree.pack(side="left", fill="both", expand=True)
 
@@ -90,8 +98,11 @@ class HCPDepartmentsView:
         self.tree.delete(*self.tree.get_children())
         try:
             hcp_departments = get_all_hcp_departments(self.db_conn)
-            for department in hcp_departments:
-                self.tree.insert("", "end", values=department)
+            for idx, department in enumerate(hcp_departments):
+                tag = "evenrow" if idx % 2 == 0 else "oddrow"
+                self.tree.insert("", "end", values=department, tags=(tag,))
+            self.tree.tag_configure("evenrow", background="#f9f9f9")
+            self.tree.tag_configure("oddrow", background="#ffffff")
         except Exception as e:
             Messagebox.show_error(f"Failed to load HCP departments: {e}", title="Error")
 
@@ -106,7 +117,9 @@ class HCPDepartmentsView:
         try:
             hcp_departments = get_all_hcp_departments(self.db_conn)
             filtered_departments = [
-                department for department in hcp_departments if query.lower() in str(department).lower()
+                department
+                for department in hcp_departments
+                if query.lower() in str(department).lower()
             ]
             for department in filtered_departments:
                 self.tree.insert("", "end", values=department)
@@ -128,7 +141,9 @@ class HCPDepartmentsView:
         entries = {}
 
         for idx, field in enumerate(fields):
-            tb.Label(form_frame, text=field).grid(row=idx, column=0, padx=5, pady=5, sticky="e")
+            tb.Label(form_frame, text=field).grid(
+                row=idx, column=0, padx=5, pady=5, sticky="e"
+            )
             entry = tb.Entry(form_frame)
             entry.grid(row=idx, column=1, padx=5, pady=5, sticky="w")
             entries[field] = entry
@@ -145,9 +160,13 @@ class HCPDepartmentsView:
                 add_window.destroy()
                 self.load_hcp_departments()
             except Exception as e:
-                Messagebox.show_error(f"Failed to add HCP department: {e}", title="Error")
+                Messagebox.show_error(
+                    f"Failed to add HCP department: {e}", title="Error"
+                )
 
-        save_button = tb.Button(form_frame, text="Save", command=save_hcp_department, bootstyle=SUCCESS)
+        save_button = tb.Button(
+            form_frame, text="Save", command=save_hcp_department, bootstyle=SUCCESS
+        )
         save_button.grid(row=len(fields), column=0, columnspan=2, pady=10)
 
     def edit_hcp_department(self):
@@ -170,7 +189,9 @@ class HCPDepartmentsView:
         entries = {}
 
         for idx, field in enumerate(fields):
-            tb.Label(form_frame, text=field).grid(row=idx, column=0, padx=5, pady=5, sticky="e")
+            tb.Label(form_frame, text=field).grid(
+                row=idx, column=0, padx=5, pady=5, sticky="e"
+            )
             entry = tb.Entry(form_frame)
             entry.insert(0, values[idx + 1])  # Skip HCPID
             entry.grid(row=idx, column=1, padx=5, pady=5, sticky="w")
@@ -189,21 +210,54 @@ class HCPDepartmentsView:
                 edit_window.destroy()
                 self.load_hcp_departments()
             except Exception as e:
-                Messagebox.show_error(f"Failed to update HCP department: {e}", title="Error")
+                Messagebox.show_error(
+                    f"Failed to update HCP department: {e}", title="Error"
+                )
 
-        save_button = tb.Button(form_frame, text="Save", command=update_hcp_department_record, bootstyle=SUCCESS)
+        save_button = tb.Button(
+            form_frame,
+            text="Save",
+            command=update_hcp_department_record,
+            bootstyle=SUCCESS,
+        )
         save_button.grid(row=len(fields), column=0, columnspan=2, pady=10)
 
     def delete_hcp_department(self):
         """Delete selected HCP department."""
         selected_item = self.tree.focus()
         if not selected_item:
-            Messagebox.show_warning("Please select a record to delete.", title="Warning")
+            Messagebox.show_warning(
+                "Please select a record to delete.", title="Warning"
+            )
             return
 
         values = self.tree.item(selected_item, "values")
+        if not values:
+            Messagebox.show_error(
+                "Failed to retrieve the selected HCP department's details.",
+                title="Error",
+            )
+            return
+
+        hcp_id = values[0]
+        department_name = values[1]
+
+        confirm = Messagebox.okcancel(
+            message=f"Are you sure you want to delete the department '{department_name}' for HCP ID '{hcp_id}'?",
+            title="Confirm Deletion",
+            alert=True,
+        )
+        if not confirm:
+            return
+
         try:
-            delete_hcp_department(self.db_conn, values[0])  # HCPID
+            delete_hcp_department(self.db_conn, hcp_id, department_name)
             self.load_hcp_departments()
+            Messagebox.show_info(
+                f"Department '{department_name}' for HCP ID '{hcp_id}' deleted successfully.",
+                title="Success",
+            )
         except Exception as e:
-            Messagebox.show_error(f"Failed to delete HCP department: {e}", title="Error")
+            Messagebox.show_error(
+                f"Failed to delete HCP department: {e}", title="Error"
+            )

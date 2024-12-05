@@ -1,6 +1,7 @@
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from ttkbootstrap.dialogs import Messagebox
+import tkinter as tk
 from database.basic_queries import (
     get_all_patient_insurance,
     add_patient_insurance_to_db,
@@ -13,6 +14,29 @@ class PatientInsuranceView:
     def __init__(self, root, db_conn):
         self.root = root
         self.db_conn = db_conn
+
+        # Configure table styles
+        style = tb.Style()
+        style.configure(
+            "Treeview",
+            background="white",
+            foreground="black",
+            rowheight=30,
+            fieldbackground="white",
+            borderwidth=0,
+            font=("Segoe UI", 11),
+        )
+        style.configure(
+            "Treeview.Heading",
+            background="#f8f9fa",
+            foreground="black",
+            font=("Segoe UI", 12, "bold"),
+        )
+        style.map(
+            "Treeview",
+            background=[("selected", "#e8f4ff")],
+            foreground=[("selected", "black")],
+        )
 
     def show(self, content_frame):
         """Display the Patient Insurance view."""
@@ -49,12 +73,32 @@ class PatientInsuranceView:
         tree_frame = tb.Frame(content_frame)
         tree_frame.pack(fill="both", expand=True)
 
-        columns = ("PatientID", "InsuranceID", "Coverage Start Date", "Coverage End Date")
-        self.tree = tb.Treeview(tree_frame, columns=columns, show="headings", bootstyle=INFO)
+        columns = (
+            "PatientID",
+            "InsuranceID",
+            "Coverage Start Date",
+            "Coverage End Date",
+        )
+        self.tree = tb.Treeview(
+            tree_frame, columns=columns, show="headings", style="Treeview"
+        )
 
-        for col in columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, anchor="center")
+        # Configure columns
+        self.tree.column("#0", width=0, stretch=tk.NO)  # Hide default column
+        self.tree.column("PatientID", anchor="center", width=100)
+        self.tree.column("InsuranceID", anchor="center", width=100)
+        self.tree.column("Coverage Start Date", anchor="center", width=150)
+        self.tree.column("Coverage End Date", anchor="center", width=150)
+
+        # Add headers
+        self.tree.heading("PatientID", text="Patient ID", anchor="center")
+        self.tree.heading("InsuranceID", text="Insurance ID", anchor="center")
+        self.tree.heading(
+            "Coverage Start Date", text="Coverage Start Date", anchor="center"
+        )
+        self.tree.heading(
+            "Coverage End Date", text="Coverage End Date", anchor="center"
+        )
 
         self.tree.pack(side="left", fill="both", expand=True)
 
@@ -90,10 +134,15 @@ class PatientInsuranceView:
         self.tree.delete(*self.tree.get_children())
         try:
             patient_insurance = get_all_patient_insurance(self.db_conn)
-            for entry in patient_insurance:
-                self.tree.insert("", "end", values=entry)
+            for idx, entry in enumerate(patient_insurance):
+                tag = "evenrow" if idx % 2 == 0 else "oddrow"
+                self.tree.insert("", "end", values=entry, tags=(tag,))
+            self.tree.tag_configure("evenrow", background="#f9f9f9")
+            self.tree.tag_configure("oddrow", background="#ffffff")
         except Exception as e:
-            Messagebox.show_error(f"Failed to load patient insurance: {e}", title="Error")
+            Messagebox.show_error(
+                f"Failed to load patient insurance: {e}", title="Error"
+            )
 
     def search_patient_insurance(self, search_entry):
         """Search patient insurance based on the search query."""
@@ -106,7 +155,9 @@ class PatientInsuranceView:
         try:
             patient_insurance = get_all_patient_insurance(self.db_conn)
             filtered_entries = [
-                entry for entry in patient_insurance if query.lower() in str(entry).lower()
+                entry
+                for entry in patient_insurance
+                if query.lower() in str(entry).lower()
             ]
             for entry in filtered_entries:
                 self.tree.insert("", "end", values=entry)
@@ -124,11 +175,18 @@ class PatientInsuranceView:
         form_frame.pack(fill="both", expand=True)
 
         # Form fields
-        fields = ["PatientID", "InsuranceID", "CoverageStartDate", "CoverageEndDate"]
+        fields = [
+            "PatientID",
+            "InsuranceID",
+            "Coverage Start Date",
+            "Coverage End Date",
+        ]
         entries = {}
 
         for idx, field in enumerate(fields):
-            tb.Label(form_frame, text=field).grid(row=idx, column=0, padx=5, pady=5, sticky="e")
+            tb.Label(form_frame, text=field).grid(
+                row=idx, column=0, padx=5, pady=5, sticky="e"
+            )
             entry = tb.Entry(form_frame)
             entry.grid(row=idx, column=1, padx=5, pady=5, sticky="w")
             entries[field] = entry
@@ -145,9 +203,13 @@ class PatientInsuranceView:
                 add_window.destroy()
                 self.load_patient_insurance()
             except Exception as e:
-                Messagebox.show_error(f"Failed to add patient insurance: {e}", title="Error")
+                Messagebox.show_error(
+                    f"Failed to add patient insurance: {e}", title="Error"
+                )
 
-        save_button = tb.Button(form_frame, text="Save", command=save_patient_insurance, bootstyle=SUCCESS)
+        save_button = tb.Button(
+            form_frame, text="Save", command=save_patient_insurance, bootstyle=SUCCESS
+        )
         save_button.grid(row=len(fields), column=0, columnspan=2, pady=10)
 
     def edit_patient_insurance(self):
@@ -166,11 +228,13 @@ class PatientInsuranceView:
         form_frame = tb.Frame(edit_window, padding=20)
         form_frame.pack(fill="both", expand=True)
 
-        fields = ["CoverageStartDate", "CoverageEndDate"]
+        fields = ["Coverage Start Date", "Coverage End Date"]
         entries = {}
 
         for idx, field in enumerate(fields):
-            tb.Label(form_frame, text=field).grid(row=idx, column=0, padx=5, pady=5, sticky="e")
+            tb.Label(form_frame, text=field).grid(
+                row=idx, column=0, padx=5, pady=5, sticky="e"
+            )
             entry = tb.Entry(form_frame)
             entry.insert(0, values[idx + 2])  # Skip PatientID and InsuranceID
             entry.grid(row=idx, column=1, padx=5, pady=5, sticky="w")
@@ -186,25 +250,60 @@ class PatientInsuranceView:
                 return
 
             try:
-                update_patient_insurance(self.db_conn, data["PatientID"], data["InsuranceID"], data)
+                update_patient_insurance(
+                    self.db_conn, data["PatientID"], data["InsuranceID"], data
+                )
                 edit_window.destroy()
                 self.load_patient_insurance()
             except Exception as e:
-                Messagebox.show_error(f"Failed to update patient insurance: {e}", title="Error")
+                Messagebox.show_error(
+                    f"Failed to update patient insurance: {e}", title="Error"
+                )
 
-        save_button = tb.Button(form_frame, text="Save", command=update_patient_insurance_record, bootstyle=SUCCESS)
+        save_button = tb.Button(
+            form_frame,
+            text="Save",
+            command=update_patient_insurance_record,
+            bootstyle=SUCCESS,
+        )
         save_button.grid(row=len(fields), column=0, columnspan=2, pady=10)
 
     def delete_patient_insurance(self):
         """Delete selected patient insurance."""
         selected_item = self.tree.focus()
         if not selected_item:
-            Messagebox.show_warning("Please select a record to delete.", title="Warning")
+            Messagebox.show_warning(
+                "Please select a record to delete.", title="Warning"
+            )
             return
 
         values = self.tree.item(selected_item, "values")
+        if not values:
+            Messagebox.show_error(
+                "Failed to retrieve the selected patient insurance details.",
+                title="Error",
+            )
+            return
+
+        patient_id = values[0]
+        insurance_id = values[1]
+
+        confirm = Messagebox.okcancel(
+            message=f"Are you sure you want to delete the insurance record for Patient ID '{patient_id}' and Insurance ID '{insurance_id}'?",
+            title="Confirm Deletion",
+            alert=True,
+        )
+        if not confirm:
+            return
+
         try:
-            delete_patient_insurance(self.db_conn, values[0], values[1])  # PatientID, InsuranceID
+            delete_patient_insurance(self.db_conn, patient_id, insurance_id)
             self.load_patient_insurance()
+            Messagebox.show_info(
+                f"Insurance record for Patient ID '{patient_id}' and Insurance ID '{insurance_id}' deleted successfully.",
+                title="Success",
+            )
         except Exception as e:
-            Messagebox.show_error(f"Failed to delete patient insurance: {e}", title="Error")
+            Messagebox.show_error(
+                f"Failed to delete patient insurance: {e}", title="Error"
+            )

@@ -1,6 +1,7 @@
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 from ttkbootstrap.dialogs import Messagebox
+import tkinter as tk
 from database.basic_queries import (
     get_all_patient_medications,
     add_patient_medication_to_db,
@@ -13,6 +14,29 @@ class PatientMedicationsView:
     def __init__(self, root, db_conn):
         self.root = root
         self.db_conn = db_conn
+
+        # Configure table styles
+        style = tb.Style()
+        style.configure(
+            "Treeview",
+            background="white",
+            foreground="black",
+            rowheight=30,
+            fieldbackground="white",
+            borderwidth=0,
+            font=("Segoe UI", 11),
+        )
+        style.configure(
+            "Treeview.Heading",
+            background="#f8f9fa",
+            foreground="black",
+            font=("Segoe UI", 12, "bold"),
+        )
+        style.map(
+            "Treeview",
+            background=[("selected", "#e8f4ff")],
+            foreground=[("selected", "black")],
+        )
 
     def show(self, content_frame):
         """Display the Patient Medications view."""
@@ -50,11 +74,24 @@ class PatientMedicationsView:
         tree_frame.pack(fill="both", expand=True)
 
         columns = ("PatientID", "MedicationID", "Start Date", "End Date", "Dosage")
-        self.tree = tb.Treeview(tree_frame, columns=columns, show="headings", bootstyle=INFO)
+        self.tree = tb.Treeview(
+            tree_frame, columns=columns, show="headings", style="Treeview"
+        )
 
-        for col in columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, anchor="center")
+        # Configure columns
+        self.tree.column("#0", width=0, stretch=tk.NO)  # Hide default column
+        self.tree.column("PatientID", anchor="center", width=100)
+        self.tree.column("MedicationID", anchor="center", width=100)
+        self.tree.column("Start Date", anchor="center", width=120)
+        self.tree.column("End Date", anchor="center", width=120)
+        self.tree.column("Dosage", anchor="center", width=100)
+
+        # Add headers
+        self.tree.heading("PatientID", text="Patient ID", anchor="center")
+        self.tree.heading("MedicationID", text="Medication ID", anchor="center")
+        self.tree.heading("Start Date", text="Start Date", anchor="center")
+        self.tree.heading("End Date", text="End Date", anchor="center")
+        self.tree.heading("Dosage", text="Dosage", anchor="center")
 
         self.tree.pack(side="left", fill="both", expand=True)
 
@@ -90,10 +127,15 @@ class PatientMedicationsView:
         self.tree.delete(*self.tree.get_children())
         try:
             patient_medications = get_all_patient_medications(self.db_conn)
-            for entry in patient_medications:
-                self.tree.insert("", "end", values=entry)
+            for idx, entry in enumerate(patient_medications):
+                tag = "evenrow" if idx % 2 == 0 else "oddrow"
+                self.tree.insert("", "end", values=entry, tags=(tag,))
+            self.tree.tag_configure("evenrow", background="#f9f9f9")
+            self.tree.tag_configure("oddrow", background="#ffffff")
         except Exception as e:
-            Messagebox.show_error(f"Failed to load patient medications: {e}", title="Error")
+            Messagebox.show_error(
+                f"Failed to load patient medications: {e}", title="Error"
+            )
 
     def search_patient_medications(self, search_entry):
         """Search patient medications based on the search query."""
@@ -106,7 +148,9 @@ class PatientMedicationsView:
         try:
             patient_medications = get_all_patient_medications(self.db_conn)
             filtered_entries = [
-                entry for entry in patient_medications if query.lower() in str(entry).lower()
+                entry
+                for entry in patient_medications
+                if query.lower() in str(entry).lower()
             ]
             for entry in filtered_entries:
                 self.tree.insert("", "end", values=entry)
@@ -128,7 +172,9 @@ class PatientMedicationsView:
         entries = {}
 
         for idx, field in enumerate(fields):
-            tb.Label(form_frame, text=field).grid(row=idx, column=0, padx=5, pady=5, sticky="e")
+            tb.Label(form_frame, text=field).grid(
+                row=idx, column=0, padx=5, pady=5, sticky="e"
+            )
             entry = tb.Entry(form_frame)
             entry.grid(row=idx, column=1, padx=5, pady=5, sticky="w")
             entries[field] = entry
@@ -145,9 +191,13 @@ class PatientMedicationsView:
                 add_window.destroy()
                 self.load_patient_medications()
             except Exception as e:
-                Messagebox.show_error(f"Failed to add patient medication: {e}", title="Error")
+                Messagebox.show_error(
+                    f"Failed to add patient medication: {e}", title="Error"
+                )
 
-        save_button = tb.Button(form_frame, text="Save", command=save_patient_medication, bootstyle=SUCCESS)
+        save_button = tb.Button(
+            form_frame, text="Save", command=save_patient_medication, bootstyle=SUCCESS
+        )
         save_button.grid(row=len(fields), column=0, columnspan=2, pady=10)
 
     def edit_patient_medication(self):
@@ -170,7 +220,9 @@ class PatientMedicationsView:
         entries = {}
 
         for idx, field in enumerate(fields):
-            tb.Label(form_frame, text=field).grid(row=idx, column=0, padx=5, pady=5, sticky="e")
+            tb.Label(form_frame, text=field).grid(
+                row=idx, column=0, padx=5, pady=5, sticky="e"
+            )
             entry = tb.Entry(form_frame)
             entry.insert(0, values[idx + 2])  # Skip PatientID and MedicationID
             entry.grid(row=idx, column=1, padx=5, pady=5, sticky="w")
@@ -186,25 +238,61 @@ class PatientMedicationsView:
                 return
 
             try:
-                update_patient_medication(self.db_conn, data["PatientID"], data["MedicationID"], data)
+                update_patient_medication(
+                    self.db_conn, data["PatientID"], data["MedicationID"], data
+                )
                 edit_window.destroy()
                 self.load_patient_medications()
             except Exception as e:
-                Messagebox.show_error(f"Failed to update patient medication: {e}", title="Error")
+                Messagebox.show_error(
+                    f"Failed to update patient medication: {e}", title="Error"
+                )
 
-        save_button = tb.Button(form_frame, text="Save", command=update_patient_medication_record, bootstyle=SUCCESS)
+        save_button = tb.Button(
+            form_frame,
+            text="Save",
+            command=update_patient_medication_record,
+            bootstyle=SUCCESS,
+        )
         save_button.grid(row=len(fields), column=0, columnspan=2, pady=10)
 
+    
     def delete_patient_medication(self):
         """Delete selected patient medication."""
         selected_item = self.tree.focus()
         if not selected_item:
-            Messagebox.show_warning("Please select a record to delete.", title="Warning")
+            Messagebox.show_warning(
+                "Please select a record to delete.", title="Warning"
+            )
             return
 
         values = self.tree.item(selected_item, "values")
+        if not values:
+            Messagebox.show_error(
+                "Failed to retrieve the selected patient medication details.",
+                title="Error",
+            )
+            return
+
+        patient_id = values[0]
+        medication_id = values[1]
+
+        confirm = Messagebox.okcancel(
+            message=f"Are you sure you want to delete the medication record for Patient ID '{patient_id}' and Medication ID '{medication_id}'?",
+            title="Confirm Deletion",
+            alert=True,
+        )
+        if not confirm:
+            return
+
         try:
-            delete_patient_medication(self.db_conn, values[0], values[1])  # PatientID, MedicationID
+            delete_patient_medication(self.db_conn, patient_id, medication_id)
             self.load_patient_medications()
+            Messagebox.show_info(
+                f"Medication record for Patient ID '{patient_id}' and Medication ID '{medication_id}' deleted successfully.",
+                title="Success",
+            )
         except Exception as e:
-            Messagebox.show_error(f"Failed to delete patient medication: {e}", title="Error")
+            Messagebox.show_error(
+                f"Failed to delete patient medication: {e}", title="Error"
+            )
